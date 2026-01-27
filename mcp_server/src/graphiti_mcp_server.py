@@ -92,6 +92,8 @@ logging.getLogger('uvicorn.access').setLevel(logging.WARNING)  # Reduce access l
 logging.getLogger('mcp.server.streamable_http_manager').setLevel(
     logging.WARNING
 )  # Reduce MCP noise
+logging.getLogger('google_genai.models').setLevel(logging.WARNING)  # Reduce AFC info noise
+logging.getLogger('google_genai.types').setLevel(logging.ERROR)  # Suppress thought_signature warnings
 
 
 # Patch uvicorn's logging config to use our format

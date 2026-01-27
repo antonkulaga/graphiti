@@ -236,7 +236,17 @@ class LLMClientFactory:
                     temperature=config.temperature,
                     max_tokens=config.max_tokens,
                 )
-                return GeminiClient(config=llm_config)
+
+                # Import types for thinking config
+                from google.genai import types
+
+                # Disable/minimize thinking for Gemini 3+ models used in structured extraction
+                # Gemini 3 models have thinking enabled by default at "high" level
+                # For JSON extraction tasks, "low" is sufficient and reduces token usage/latency
+                # Also prevents thought_signature warnings from spamming logs
+                thinking_config = types.ThinkingConfig(thinking_level='low')
+
+                return GeminiClient(config=llm_config, thinking_config=thinking_config)
 
             case 'groq':
                 if not HAS_GROQ:
