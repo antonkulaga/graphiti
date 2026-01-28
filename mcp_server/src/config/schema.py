@@ -146,8 +146,8 @@ class LLMProvidersConfig(BaseModel):
 class LLMConfig(BaseModel):
     """LLM configuration."""
 
-    provider: str = Field(default='openai', description='LLM provider')
-    model: str = Field(default='gpt-4o-mini', description='Model name')
+    provider: str = Field(default='gemini', description='LLM provider')
+    model: str = Field(default='gemini-2.5-flash', description='Model name')
     temperature: float | None = Field(
         default=None, description='Temperature (optional, defaults to None for reasoning models)'
     )
@@ -167,9 +167,9 @@ class EmbedderProvidersConfig(BaseModel):
 class EmbedderConfig(BaseModel):
     """Embedder configuration."""
 
-    provider: str = Field(default='openai', description='Embedder provider')
-    model: str = Field(default='text-embedding-3-small', description='Model name')
-    dimensions: int = Field(default=1536, description='Embedding dimensions')
+    provider: str = Field(default='gemini', description='Embedder provider')
+    model: str = Field(default='gemini-embedding-001', description='Model name')
+    dimensions: int = Field(default=768, description='Embedding dimensions')
     providers: EmbedderProvidersConfig = Field(default_factory=EmbedderProvidersConfig)
 
 
