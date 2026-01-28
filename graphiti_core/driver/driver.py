@@ -114,6 +114,19 @@ class GraphDriver(ABC):
         """Clone the driver with a different database or graph name."""
         return self
 
+    async def health_check(self) -> None:
+        """Check database connectivity by running a simple query.
+
+        This method should verify that the database connection is properly established.
+        It's particularly important for databases with lazy connection initialization
+        (like FalkorDB/Redis) where the connection may not be fully established until
+        the first actual query is executed.
+
+        Subclasses should override this method with database-specific connectivity checks.
+        """
+        # Default implementation does nothing - subclasses should override
+        pass
+
     def build_fulltext_query(
         self, query: str, group_ids: list[str] | None = None, max_query_length: int = 128
     ) -> str:

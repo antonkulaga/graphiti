@@ -31,7 +31,12 @@ from models.response_types import (
     StatusResponse,
     SuccessResponse,
 )
-from services.factories import CrossEncoderFactory, DatabaseDriverFactory, EmbedderFactory, LLMClientFactory
+from services.factories import (
+    CrossEncoderFactory,
+    DatabaseDriverFactory,
+    EmbedderFactory,
+    LLMClientFactory,
+)
 from services.queue_service import QueueService
 from utils.formatting import format_fact_result
 
@@ -93,7 +98,9 @@ logging.getLogger('mcp.server.streamable_http_manager').setLevel(
     logging.WARNING
 )  # Reduce MCP noise
 logging.getLogger('google_genai.models').setLevel(logging.WARNING)  # Reduce AFC info noise
-logging.getLogger('google_genai.types').setLevel(logging.ERROR)  # Suppress thought_signature warnings
+logging.getLogger('google_genai.types').setLevel(
+    logging.ERROR
+)  # Suppress thought_signature warnings
 
 
 # Patch uvicorn's logging config to use our format
@@ -338,6 +345,12 @@ class GraphitiService:
             # Build indices
             await self.client.build_indices_and_constraints()
 
+            # Verify database connection is properly established
+            # This is important for FalkorDB which may have lazy connection initialization.
+            # Without this, read queries may return empty results after MCP client restart
+            # until a write operation forces the connection to be established.
+            await self.client.driver.health_check()
+
             logger.info('Successfully initialized Graphiti client')
 
             # Log configuration details
@@ -360,13 +373,17 @@ class GraphitiService:
 
             if self.entity_types:
                 entity_type_names = list(self.entity_types.keys())
-                logger.info(f'Using custom entity types ({len(entity_type_names)}): {", ".join(entity_type_names[:10])}{"..." if len(entity_type_names) > 10 else ""}')
+                logger.info(
+                    f'Using custom entity types ({len(entity_type_names)}): {", ".join(entity_type_names[:10])}{"..." if len(entity_type_names) > 10 else ""}'
+                )
             else:
                 logger.info('Using default entity types')
 
             if self.edge_types:
                 edge_type_names = list(self.edge_types.keys())
-                logger.info(f'Using custom edge types ({len(edge_type_names)}): {", ".join(edge_type_names[:10])}{"..." if len(edge_type_names) > 10 else ""}')
+                logger.info(
+                    f'Using custom edge types ({len(edge_type_names)}): {", ".join(edge_type_names[:10])}{"..." if len(edge_type_names) > 10 else ""}'
+                )
             else:
                 logger.info('Using default edge types (LLM-inferred)')
 
