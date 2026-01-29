@@ -189,16 +189,26 @@ graphiti:
     # ══════════════════════════════════════════════════════════════════════════════
     # GENETICS & OMICS
     # ══════════════════════════════════════════════════════════════════════════════
+    - name: "Transcript"
+      description: "RNA transcripts (mRNA, lncRNA, miRNA, circRNA, snoRNA, tRNA, rRNA, with transcript ID, biotype)"
+    - name: "ExpressionProfile"
+      description: "Gene/protein expression profile or signature (DEG lists, co-expression modules, cell type markers)"
+    - name: "GeneExpression"
+      description: "Gene expression patterns (e.g., differentially expressed genes, expression signatures)"
     - name: "GWAS"
       description: "Genome-wide association studies (trait, significant loci, sample size, populations)"
     - name: "PolygenicScore"
       description: "Polygenic risk scores (e.g., T2D PRS, longevity PRS, with predictive performance)"
-    - name: "GeneExpression"
-      description: "Gene expression patterns (e.g., differentially expressed genes, expression signatures)"
     - name: "EpigeneticMark"
       description: "Epigenetic modifications (e.g., DNA methylation sites, histone marks, CpG islands)"
     - name: "OmicsDataType"
       description: "Omics data types (e.g., transcriptomics, proteomics, metabolomics, epigenomics, glycomics)"
+    - name: "OmicsExperiment"
+      description: "Omics experiment (study design, conditions, replicates, batch, quality metrics)"
+    - name: "RegulatoryElement"
+      description: "Regulatory elements (promoters, enhancers, silencers, insulators, UTRs, TF binding sites)"
+    - name: "ChromatinState"
+      description: "Chromatin accessibility and state (open/closed chromatin, ATAC peaks, chromatin domains)"
     
     # ══════════════════════════════════════════════════════════════════════════════
     # ML/AI & PREDICTIVE MODELING
@@ -653,6 +663,48 @@ graphiti:
       description: "GeneticVariant is a variant of a Gene"
       source_types: ["GeneticVariant"]
       target_types: ["Gene"]
+    
+    # ══════════════════════════════════════════════════════════════════════════════
+    # TRANSCRIPTION & EXPRESSION RELATIONSHIPS
+    # ══════════════════════════════════════════════════════════════════════════════
+    - name: "TRANSCRIBES"
+      description: "Gene transcribes to transcript (Gene -> Transcript)"
+      source_types: ["Gene"]
+      target_types: ["Transcript"]
+    - name: "TRANSLATES_TO"
+      description: "Transcript translates to protein (Transcript -> Protein)"
+      source_types: ["Transcript"]
+      target_types: ["Protein"]
+    - name: "SPLICED_FROM"
+      description: "Transcript isoform spliced from gene (alternative splicing)"
+      source_types: ["Transcript"]
+      target_types: ["Gene"]
+    - name: "DIFFERENTIALLY_EXPRESSED_IN"
+      description: "Gene/transcript differentially expressed in condition/tissue"
+    - name: "ENRICHED_IN"
+      description: "Gene/pathway/term enriched in gene set or condition"
+    - name: "MARKER_OF"
+      description: "Gene/protein is a marker of cell type or condition"
+    - name: "SIGNATURE_OF"
+      description: "Expression profile is signature of condition/phenotype"
+      source_types: ["ExpressionProfile"]
+    - name: "ACCESSIBLE_IN"
+      description: "Chromatin region accessible in cell type/condition (ATAC-seq)"
+      source_types: ["RegulatoryElement", "ChromatinState"]
+      target_types: ["CellType", "Tissue"]
+    - name: "REGULATES_TRANSCRIPTION_OF"
+      description: "Regulatory element controls transcription of gene"
+      source_types: ["RegulatoryElement", "Protein"]
+      target_types: ["Gene", "Transcript"]
+    - name: "BINDS_PROMOTER_OF"
+      description: "Transcription factor binds promoter of gene"
+      source_types: ["Protein"]
+      target_types: ["Gene", "RegulatoryElement"]
+    - name: "IDENTIFIED_BY"
+      description: "Entity identified/detected by experimental method"
+    - name: "PROFILED_IN"
+      description: "Gene/protein profiled in omics experiment"
+      target_types: ["OmicsExperiment", "Dataset"]
     
     # ══════════════════════════════════════════════════════════════════════════════
     # GENETIC PERTURBATION RELATIONSHIPS
