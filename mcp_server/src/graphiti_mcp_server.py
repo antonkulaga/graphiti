@@ -873,59 +873,98 @@ async def list_knowledge_graphs() -> KnowledgeGraphListResponse | ErrorResponse:
 
         graphs: dict[str, KnowledgeGraphResult] = {}
 
-        # 1. Query current database for all group_ids
-        # We query for Entity and Episodic nodes to find all active group_ids
-        records, _, _ = await driver.execute_query(
-            """
-            MATCH (n)
-            WHERE n:Entity OR n:Episodic
-            WITH n.group_id as gid, 
-                 CASE WHEN n:Entity THEN 1 ELSE 0 END as is_entity,
-                 CASE WHEN n:Episodic THEN 1 ELSE 0 END as is_episode,
-                 n.created_at as created_at
-            RETURN gid as group_id, 
-                   sum(is_entity) as entity_count, 
-                   sum(is_episode) as episode_count, 
-                   max(created_at) as last_updated
-            """
-        )
-
-        for record in records:
-            gid = record['group_id']
-            if gid:
-                from graphiti_core.helpers import parse_db_date
-
-                last_updated_dt = parse_db_date(record['last_updated'])
-                graphs[gid] = KnowledgeGraphResult(
-                    group_id=gid,
-                    entity_count=int(record['entity_count'] or 0),
-                    episode_count=int(record['episode_count'] or 0),
-                    last_updated=last_updated_dt.isoformat() if last_updated_dt else None,
-                    description=None,
-                )
-
-        # 2. If FalkorDB, check for other databases (graphs) in the same instance
+        # For FalkorDB, each graph is a separate database - we need to query each one
         if driver.provider == GraphProvider.FALKORDB:
             try:
                 # driver.client is the FalkorDB instance in graphiti-core
                 # Use getattr to avoid linter errors on abstract GraphDriver
                 falkor_client = getattr(driver, 'client', None)
                 if falkor_client and hasattr(falkor_client, 'list_graphs'):
-                    all_graphs = await falkor_client.list_graphs()
-                    for graph_name in all_graphs:
-                        if graph_name not in graphs:
-                            # We found a graph that might not have nodes yet or is just a different DB
+                    all_graph_names = await falkor_client.list_graphs()
+                    for graph_name in all_graph_names:
+                        # Clone driver to query this specific database
+                        graph_driver = driver.clone(database=graph_name)
+                        try:
+                            records, _, _ = await graph_driver.execute_query(
+                                """
+                                MATCH (n)
+                                WHERE n:Entity OR n:Episodic
+                                WITH CASE WHEN n:Entity THEN 1 ELSE 0 END as is_entity,
+                                     CASE WHEN n:Episodic THEN 1 ELSE 0 END as is_episode,
+                                     n.created_at as created_at
+                                RETURN sum(is_entity) as entity_count, 
+                                       sum(is_episode) as episode_count, 
+                                       max(created_at) as last_updated
+                                """
+                            )
+                            if records and len(records) > 0:
+                                record = records[0]
+                                from graphiti_core.helpers import parse_db_date
+
+                                last_updated_dt = parse_db_date(record.get('last_updated'))
+                                graphs[graph_name] = KnowledgeGraphResult(
+                                    group_id=graph_name,
+                                    entity_count=int(record.get('entity_count') or 0),
+                                    episode_count=int(record.get('episode_count') or 0),
+                                    last_updated=(
+                                        last_updated_dt.isoformat() if last_updated_dt else None
+                                    ),
+                                    description=None,
+                                )
+                            else:
+                                # Graph exists but has no Entity or Episodic nodes
+                                graphs[graph_name] = KnowledgeGraphResult(
+                                    group_id=graph_name,
+                                    entity_count=0,
+                                    episode_count=0,
+                                    last_updated=None,
+                                    description=None,
+                                )
+                        except Exception as e:
+                            logger.warning(f'Failed to query FalkorDB graph {graph_name}: {e}')
+                            # Still include the graph, just without counts
                             graphs[graph_name] = KnowledgeGraphResult(
                                 group_id=graph_name,
                                 entity_count=0,
                                 episode_count=0,
                                 last_updated=None,
-                                description=f'Separate FalkorDB graph: {graph_name}',
+                                description=f'FalkorDB graph (query failed: {e})',
                             )
             except Exception as e:
                 logger.warning(f'Failed to list FalkorDB graphs: {e}')
+        else:
+            # For Neo4j, query current database for all group_ids
+            # We query for Entity and Episodic nodes to find all active group_ids
+            records, _, _ = await driver.execute_query(
+                """
+                MATCH (n)
+                WHERE n:Entity OR n:Episodic
+                WITH n.group_id as gid, 
+                     CASE WHEN n:Entity THEN 1 ELSE 0 END as is_entity,
+                     CASE WHEN n:Episodic THEN 1 ELSE 0 END as is_episode,
+                     n.created_at as created_at
+                RETURN gid as group_id, 
+                       sum(is_entity) as entity_count, 
+                       sum(is_episode) as episode_count, 
+                       max(created_at) as last_updated
+                """
+            )
 
-        # 3. For each group, try to get a better description (e.g., top labels)
+            for record in records:
+                gid = record['group_id']
+                if gid:
+                    from graphiti_core.helpers import parse_db_date
+
+                    last_updated_dt = parse_db_date(record['last_updated'])
+                    graphs[gid] = KnowledgeGraphResult(
+                        group_id=gid,
+                        entity_count=int(record['entity_count'] or 0),
+                        episode_count=int(record['episode_count'] or 0),
+                        last_updated=last_updated_dt.isoformat() if last_updated_dt else None,
+                        description=None,
+                    )
+
+        # 2. For each group, try to get a better description (e.g., top labels)
         for gid in graphs:
             if graphs[gid]['description']:
                 continue  # skip if already set (like for FalkorDB empty graphs)
