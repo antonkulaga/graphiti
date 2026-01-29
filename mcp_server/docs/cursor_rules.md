@@ -1,9 +1,21 @@
 ## Instructions for Using Graphiti's MCP Tools for Agent Memory
 
+### Critical: Understanding Group IDs
+
+- **Group IDs are required:** All data in Graphiti is organized by `group_id`, which identifies a specific knowledge graph.
+- **Always call `list_knowledge_graphs` first:** Before searching, call this tool to discover which graphs exist and their group IDs.
+- **Empty results usually mean wrong group_id:** If your search returns nothing, you likely:
+  - Did not specify `group_ids` in your search
+  - Specified an empty array `[]` for `group_ids`
+  - Used the wrong `group_id` that doesn't match where your data is stored
+- **DO NOT assume the graph is empty** without first verifying you're querying the correct `group_id`.
+
 ### Before Starting Any Task
 
-- **Always search first:** Use the `search_nodes` tool to look for relevant preferences and procedures before beginning work.
-- **Search for facts too:** Use the `search_facts` tool to discover relationships and factual information that may be relevant to your task.
+- **Discover graphs first:** Use `list_knowledge_graphs` to see all available knowledge graphs and their group IDs.
+- **Always include group_ids:** When calling `search_nodes`, `search_memory_facts`, or `get_episodes`, always specify the `group_ids` parameter with the correct graph identifier(s).
+- **Search for nodes:** Use the `search_nodes` tool with proper `group_ids` to look for relevant preferences and procedures.
+- **Search for facts too:** Use the `search_memory_facts` tool with proper `group_ids` to discover relationships.
 - **Filter by entity type:** Specify `Preference`, `Procedure`, or `Requirement` in your node search to get targeted results.
 - **Review all matches:** Carefully examine any preferences, procedures, or facts that match your current task.
 

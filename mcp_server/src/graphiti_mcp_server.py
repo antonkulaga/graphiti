@@ -138,21 +138,31 @@ structured JSON data, enabling seamless integration with existing data pipelines
 Facts contain temporal metadata, allowing you to track the time of creation and whether a fact is invalid 
 (superseded by new information).
 
+CRITICAL - Group ID Requirements:
+- Data is organized by group_id, which identifies a specific knowledge graph
+- You MUST specify group_ids when searching (search_nodes, search_memory_facts, get_episodes)
+- If you don't know which graphs exist, ALWAYS call list_knowledge_graphs FIRST to discover available graphs
+- Empty results usually mean: (a) wrong group_id specified, or (b) group_ids was empty/not provided
+- DO NOT assume the graph is empty without first verifying you're querying the correct group_id
+
+Recommended workflow:
+1. Call list_knowledge_graphs to see all available knowledge graphs and their group IDs
+2. Use the discovered group_id(s) in all subsequent search operations
+3. When adding information, specify the group_id to store data in the correct graph
+
 Key capabilities:
-1. Add episodes (text, messages, or JSON) to the knowledge graph with the add_memory tool
-2. List all available knowledge graphs (group IDs) using list_knowledge_graphs
-3. Search for nodes (entities) in the graph using natural language queries with search_nodes
-4. Find relevant facts (relationships between entities) with search_facts
-5. Retrieve specific entity edges or episodes by UUID
-6. Manage the knowledge graph with tools like delete_episode, delete_entity_edge, and clear_graph
+1. list_knowledge_graphs - CALL THIS FIRST to discover available graphs and their group IDs
+2. add_memory - Add episodes (text, messages, or JSON) to a specific knowledge graph
+3. search_nodes - Search for entities in the graph (requires group_ids)
+4. search_memory_facts - Find relationships between entities (requires group_ids)
+5. get_episodes - Retrieve stored episodes (requires group_ids)
+6. Manage the knowledge graph with delete_episode, delete_entity_edge, and clear_graph
 
 The server connects to a database for persistent storage and uses language models for certain operations. 
 Each piece of information is organized by group_id, which represents a unique knowledge graph identifier. 
 This allows you to maintain separate, isolated knowledge graphs for different users, projects, or domains.
 
-When adding information, provide descriptive names and detailed content to improve search quality. 
-When searching, use specific queries and consider filtering by group_ids (a list of knowledge graph identifiers) 
-for more relevant results.
+When adding information, provide descriptive names and detailed content to improve search quality.
 
 For optimal performance, ensure the database is properly configured and accessible, and valid 
 API keys are provided for any language model operations.
@@ -517,12 +527,25 @@ async def search_nodes(
 ) -> NodeSearchResponse | ErrorResponse:
     """Search for nodes (entities) in the knowledge graph.
 
+    IMPORTANT: You MUST provide group_ids to search within specific knowledge graphs.
+    If you don't know which graphs exist, call list_knowledge_graphs first to discover
+    available group IDs. Empty results often mean the wrong group_id was used or
+    group_ids was not specified.
+
     Args:
         query: The search query to find relevant entities
-        group_ids: Optional list of knowledge graph identifiers (group IDs) to filter results.
-                  If not provided, searches across all available knowledge graphs.
+        group_ids: List of knowledge graph identifiers (group IDs) to search within.
+                  REQUIRED for meaningful results. Use list_knowledge_graphs to discover
+                  available group IDs. If not provided, falls back to the server's default
+                  group_id (if configured), otherwise searches may return empty results.
         max_nodes: Maximum number of nodes to return (default: from configuration)
         entity_types: Optional list of entity type names to filter by
+
+    Example:
+        # First discover available graphs
+        graphs = await list_knowledge_graphs()
+        # Then search within a specific graph
+        results = await search_nodes(query="John Smith", group_ids=["my_project_graph"])
     """
     global graphiti_service
 
@@ -615,12 +638,25 @@ async def search_memory_facts(
 ) -> FactSearchResponse | ErrorResponse:
     """Search for relevant facts (relationships) in the knowledge graph memory.
 
+    IMPORTANT: You MUST provide group_ids to search within specific knowledge graphs.
+    If you don't know which graphs exist, call list_knowledge_graphs first to discover
+    available group IDs. Empty results often mean the wrong group_id was used or
+    group_ids was not specified.
+
     Args:
         query: The search query to find relevant facts or relationships
-        group_ids: Optional list of knowledge graph identifiers (group IDs) to filter results.
-                  If not provided, searches across all available knowledge graphs.
+        group_ids: List of knowledge graph identifiers (group IDs) to search within.
+                  REQUIRED for meaningful results. Use list_knowledge_graphs to discover
+                  available group IDs. If not provided, falls back to the server's default
+                  group_id (if configured), otherwise searches may return empty results.
         max_facts: Maximum number of facts to return (default: from configuration)
         center_node_uuid: Optional UUID of a node to center the search around
+
+    Example:
+        # First discover available graphs
+        graphs = await list_knowledge_graphs()
+        # Then search within a specific graph
+        results = await search_memory_facts(query="works at company", group_ids=["my_project_graph"])
     """
     global graphiti_service
 
@@ -764,10 +800,23 @@ async def get_episodes(
 ) -> EpisodeSearchResponse | ErrorResponse:
     """Retrieve episodes (content snippets) from the knowledge graph memory.
 
+    IMPORTANT: You MUST provide group_ids to retrieve episodes from specific knowledge graphs.
+    If you don't know which graphs exist, call list_knowledge_graphs first to discover
+    available group IDs. Empty results often mean the wrong group_id was used or
+    group_ids was not specified.
+
     Args:
-        group_ids: Optional list of knowledge graph identifiers (group IDs) to filter results.
-                  If not provided, retrieves episodes from all available knowledge graphs.
+        group_ids: List of knowledge graph identifiers (group IDs) to retrieve episodes from.
+                  REQUIRED for meaningful results. Use list_knowledge_graphs to discover
+                  available group IDs. If not provided, falls back to the server's default
+                  group_id (if configured), otherwise retrieval may return empty results.
         max_episodes: Maximum number of episodes to return (default: from configuration)
+
+    Example:
+        # First discover available graphs
+        graphs = await list_knowledge_graphs()
+        # Then retrieve episodes from a specific graph
+        episodes = await get_episodes(group_ids=["my_project_graph"])
     """
     global graphiti_service
 
@@ -859,9 +908,23 @@ async def get_episodes(
 async def list_knowledge_graphs() -> KnowledgeGraphListResponse | ErrorResponse:
     """List all available knowledge graphs (group IDs) and their basic statistics.
 
-    This tool helps you understand which knowledge graphs exist in the database
-    and what kind of information they contain, helping you decide which group_id
-    to use for subsequent operations.
+    CALL THIS FIRST before any search operations if you don't know which graphs exist.
+    This tool helps you discover which knowledge graphs are available in the database
+    and what kind of information they contain, so you can use the correct group_id(s)
+    in subsequent search_nodes, search_memory_facts, and get_episodes calls.
+
+    Returns information about each graph including:
+    - group_id: The identifier to use in other tools' group_ids parameter
+    - entity_count: Number of entities (nodes) in the graph
+    - episode_count: Number of episodes stored in the graph
+    - last_updated: When the graph was last modified
+    - description: A summary of what types of entities the graph contains
+
+    Example workflow:
+        # Step 1: Discover available graphs
+        graphs = await list_knowledge_graphs()
+        # Step 2: Use discovered group_id in searches
+        results = await search_nodes(query="...", group_ids=[graphs[0].group_id])
     """
     global graphiti_service
     if graphiti_service is None:
